@@ -6,7 +6,7 @@ const char* ssid = "TestNetwork";
 const char* passwd = "12345678";
 const boolean debug = true;
 const int serialSpeed = 9600;
-const char* ProgramVersion = "0.0.1 - 8771e14";
+const char* ProgramVersion = "0.0.1 - e2b8fb3";
 WiFiServer serverip(80);
 
 /* 
@@ -55,9 +55,9 @@ void connectWiFi(){
       Serial.println(WiFi.status());
       delay(500);
     }
-    if(WiFi.status() != WL_CONNECTED){
+    if(WiFi.status() == WL_CONNECTED){
       sendDebug('i', "Connected correctly.");
-    }else if(WiFi.status() != WL_CONNECT_FAILED){
+    }else if(WiFi.status() == WL_CONNECT_FAILED){
       sendDebug('e', "Error connecting to the network. (¿SSID out of range?)");
     }else{
       sendDebug('e', "Unexpected error connecting to network");
