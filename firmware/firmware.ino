@@ -1,4 +1,4 @@
-//Librerias
+//Libraries
 #include <ESP8266WiFi.h>
 
 //Variables
@@ -6,7 +6,7 @@ const char* ssid = "TestNetwork";
 const char* passwd = "12345678";
 const boolean debug = true;
 const int serialSpeed = 9600;
-const char* ProgramVersion = "0.0.1 - 1bb7b33";
+const char* ProgramVersion = "0.0.1 - 8771e14";
 WiFiServer serverip(80);
 
 /* 
@@ -42,7 +42,8 @@ void setup(){
 }
 
 void loop(){
-  
+  Serial.println("LOOP");
+  delay(4000);
 }
 
 
@@ -50,8 +51,9 @@ void connectWiFi(){
   if(WiFi.status() != WL_CONNECTED){
     WiFi.begin(ssid, passwd);
     sendDebug('i', "Connecting to WiFi network");
-    while(WiFi.status() != WL_CONNECTED || WiFi.status() != WL_CONNECT_FAILED){
-      sendDebug('i', ".");
+    while(WiFi.status() != WL_CONNECTED && WiFi.status() != WL_CONNECT_FAILED){
+      Serial.println(WiFi.status());
+      delay(500);
     }
     if(WiFi.status() != WL_CONNECTED){
       sendDebug('i', "Connected correctly.");
