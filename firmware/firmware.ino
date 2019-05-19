@@ -52,7 +52,20 @@ void loop(){
       // Get client request
         if (client.available()){
           String line = client.readStringUntil('\r');
-          sendDebug('i', line);
+          switch(requestGetVariables(line)){
+            case 0:
+              sendDebug('i', "[SERVER] GPIO0 detected.");
+            break;
+            case 1:
+              sendDebug('i', "[SERVER] GPIO1 detected.");
+            break;
+            case -1:
+              sendDebug('i', "[SERVER] Input/output invalid");
+            break;
+            default:
+              sendDebug('e', "[SERVER] requestGetVariables():1 internal exception.");
+            break;
+          }
           
           if(line.length() == 1 && line[0] == '\n'){
             client.println(htmlGenerator(200, 1, 1));
@@ -89,6 +102,16 @@ void connectWiFi(){
   }
 }
 
+int requestGetVariables(String request){
+  if(request.indexOf("/gpio/0") != -1){
+    return 0;
+  }else if(request.indexOf("/gpio/1") != -1){
+    return 1;
+  }else{
+    return -1;
+  }
+}
+
 String htmlGenerator(int header, int htmlheader, int htmlbody){
   String header200 = "HTTP/1.1 200 OK\r\n Content-Type: text/html\r\n Connection: close\r\n";
   String header500 = "HTTP/1.1 500";
@@ -118,6 +141,8 @@ String htmlGenerator(int header, int htmlheader, int htmlbody){
       htmlGenerated += basicHtmlBody;
     break;
   }
+
+  return htmlGenerated;
 }
 
 //void sendBrowserResponse(String response){
