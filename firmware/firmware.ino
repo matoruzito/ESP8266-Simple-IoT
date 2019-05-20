@@ -1,5 +1,6 @@
 //Libraries
 #include <ESP8266WiFi.h>
+#include <EEPROM.h>
 
 //Variables
 const char* ssid = "TestNetwork";
@@ -7,6 +8,15 @@ const char* passwd = "12345678";
 const boolean debug = true;
 const int serialSpeed = 9600;
 const String ProgramVersion = "0.0.1 - 58fa97d";
+struct {
+  int previousConfig = 0;
+  int modeGPIO0 = -1;
+  int modeGPIO1 = -1;
+  char* ssid = "default";
+  char* passwd = "none";
+} Config;
+
+uint addrEEPROM = 0;
 WiFiServer tcpserver(80);
 
 /* 
@@ -31,15 +41,36 @@ void sendDebug(char type, String message){
   }
 }
 
-
-
 void setup(){
-  sendDebug('i', "Module started");
+  String bootMessage = "Booting...\nESP8266-Simple-IoT v" + ProgramVersion;  
+  sendDebug('i', bootMessage);
   
   //Wake up methods
   connectWiFi();
   tcpserver.begin();
+  
+  //EEPROM
+  EEPROM.begin(512);
+  EEPROM.get(addrEEPROM,Config);
+  if(Config.previousConfig != 1){
+    sendDebug('i', "No config detected... ¡Applying default settings!");
+    Config.modeGPIO0 = -1;
+    Config.modeGPIO1 = -1;
+    Config.previousConfig = 1;
+    Config.ssid = "TestNetwork";
+    Config.passwd = "12345678";
+    EEPROM.put(addrEEPROM,Config);
+    EEPROM.commit();
 
+  }else{
+    sendDebug('i', "Config detected!\nSSID: "+String(Config.ssid)+"\nPassword: "+String(Config.passwd)+"\nGPIO0/GPIO1 modes:"+String(Config.modeGPIO0)+"/"+String(Config.modeGPIO1));
+  }
+  EEPROM.end();
+  //End EEPROM
+  
+  sendDebug('i', "[FIRMWARE] Data loaded/updated successful.");
+  
+  sendDebug('i', "POST Pass");
 }
 
 void loop(){
@@ -61,6 +92,9 @@ void loop(){
             break;
             case -1:
               sendDebug('i', "[SERVER] Input/output invalid");
+            break;
+            case 9:
+              sendDebug('i', "[SERVER] Configuration request");
             break;
             default:
               sendDebug('e', "[SERVER] requestGetVariables():1 internal exception.");
@@ -107,6 +141,8 @@ int requestGetVariables(String request){
     return 0;
   }else if(request.indexOf("/gpio/1") != -1){
     return 1;
+  }else if(request.indexOf("/config") != -1){
+    return 9;
   }else{
     return -1;
   }
@@ -145,9 +181,9 @@ String htmlGenerator(int header, int htmlheader, int htmlbody){
   return htmlGenerated;
 }
 
-//void sendBrowserResponse(String response){
-//  client.println(completeResponse);
-//}
+String readEEPROM(){
+  
+}
 
 boolean checkConnection(){
   if(WiFi.status() != WL_CONNECTED){
