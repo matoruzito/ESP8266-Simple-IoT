@@ -1,23 +1,62 @@
 //Libraries
 #include <ESP8266WiFi.h>
+#include <ESP8266WebServer.h>
 #include <EEPROM.h>
 
-//Variables
-const char* ssid = "TestNetwork";
-const char* passwd = "12345678";
+//Variables & Objetos
 const boolean debug = true;
 const int serialSpeed = 9600;
-const String ProgramVersion = "0.0.1 - 58fa97d";
+const String ProgramVersion = "0.0.1 - c178958";
+uint addrEEPROM = 0;
+
 struct {
   int previousConfig = 0;
   int modeGPIO0 = -1;
   int modeGPIO1 = -1;
   char* ssid = "default";
   char* passwd = "none";
+  int listenerPort = 19950;
 } Config;
 
-uint addrEEPROM = 0;
-WiFiServer tcpserver(80);
+ESP8266WebServer tcpserver(Config.listenerPort);
+
+void setup(){
+  //Boot message
+  String bootMessage = "Booting...\nESP8266-Simple-IoT v" + ProgramVersion;  
+  sendDebug('i', bootMessage);
+
+  //Load config
+  EEPROM.begin(512);
+  EEPROM.get(addrEEPROM,Config);
+
+  //¿First start?
+  if(Config.previousConfig != 1){
+    sendDebug('i', "No config detected... ¡Starting in configuration mode!");
+    birthStart();
+  }else{
+    //Wake up methods
+    connectWiFi();
+    sendDebug('i', "[FIRMWARE] Data loaded successful.");
+    tcpserver.on("/exec", handleExecServer);
+  }
+
+  /*EEPROM.put(addrEEPROM,Config);
+  EEPROM.commit();
+  EEPROM.end();*/
+
+  tcpserver.begin();
+  sendDebug('i', "POST Pass");
+}
+
+void loop(){
+  if(checkConnection()){
+
+  }else{
+    sendDebug('e', "Lost connection after started! Retry connection to WiFi network...");
+    connectWiFi();
+  }
+}
+
 
 /* 
  *  DEBUG FUNCTION
@@ -41,83 +80,25 @@ void sendDebug(char type, String message){
   }
 }
 
-void setup(){
-  String bootMessage = "Booting...\nESP8266-Simple-IoT v" + ProgramVersion;  
-  sendDebug('i', bootMessage);
-  
-  //Wake up methods
-  connectWiFi();
-  tcpserver.begin();
-  
-  //EEPROM
-  EEPROM.begin(512);
-  EEPROM.get(addrEEPROM,Config);
-  if(Config.previousConfig != 1){
-    sendDebug('i', "No config detected... ¡Applying default settings!");
-    Config.modeGPIO0 = -1;
-    Config.modeGPIO1 = -1;
-    Config.previousConfig = 1;
-    Config.ssid = "TestNetwork";
-    Config.passwd = "12345678";
-    EEPROM.put(addrEEPROM,Config);
-    EEPROM.commit();
 
-  }else{
-    sendDebug('i', "Config detected!\nSSID: "+String(Config.ssid)+"\nPassword: "+String(Config.passwd)+"\nGPIO0/GPIO1 modes:"+String(Config.modeGPIO0)+"/"+String(Config.modeGPIO1));
-  }
-  EEPROM.end();
-  //End EEPROM
-  
-  sendDebug('i', "[FIRMWARE] Data loaded/updated successful.");
-  
-  sendDebug('i', "POST Pass");
+/*
+ * First start
+ */
+void birthStart(){
+  WiFi.mode(WIFI_AP_STA);
+  sendDebug('i', "Waking up AP...");
+  while(!WiFi.softAP("SimpleIoT-ENDPOINT", "12345678")){}
+  sendDebug('i', "AP started! IP: "+WiFi.softAPIP());
+  tcpserver.on("/configuration", handleConfigurationServer);
+  sendDebug('i', "Server started. Waiting configuration...");
 }
 
-void loop(){
-  if(checkConnection()){
-    WiFiClient client = tcpserver.available();
-    if(client){
-      sendDebug('i', "[SERVER] New client connected.");
-      sendDebug('i', "[SERVER] Client IP: "+client.remoteIP().toString());
-      while (client.connected()){
-      // Get client request
-        if (client.available()){
-          String line = client.readStringUntil('\r');
-          switch(requestGetVariables(line)){
-            case 0:
-              sendDebug('i', "[SERVER] GPIO0 detected.");
-            break;
-            case 1:
-              sendDebug('i', "[SERVER] GPIO1 detected.");
-            break;
-            case -1:
-              sendDebug('i', "[SERVER] Input/output invalid");
-            break;
-            case 9:
-              sendDebug('i', "[SERVER] Configuration request");
-            break;
-            default:
-              sendDebug('e', "[SERVER] requestGetVariables():1 internal exception.");
-            break;
-          }
-          
-          if(line.length() == 1 && line[0] == '\n'){
-            client.println(htmlGenerator(200, 1, 1));
-            break;
-          }
-        }
-      }
-    }
-  }else{
-    sendDebug('e', "Lost connection after started! Retry connection to WiFi network...");
-    connectWiFi();
-  }
-}
-
-
+/*
+ * Connect WiFi method
+ */
 void connectWiFi(){
   if(WiFi.status() != WL_CONNECTED){
-    WiFi.begin(ssid, passwd);
+    WiFi.begin(Config.ssid, Config.passwd);
     sendDebug('i', "Connecting to WiFi network");
     while(WiFi.status() != WL_CONNECTED && WiFi.status() != WL_CONNECT_FAILED){
       sendDebug('i', ".");
@@ -135,6 +116,20 @@ void connectWiFi(){
     sendDebug('w', "Connection request canceled. The WiFi module is already connected to a network.");
   }
 }
+
+/*
+ * 
+ * HANDLER SERVER CONFIGURATION
+ * 
+ */
+void handleConfigurationServer(){
+
+}
+
+void handleExecServer(){
+  
+}
+
 
 int requestGetVariables(String request){
   if(request.indexOf("/gpio/0") != -1){
