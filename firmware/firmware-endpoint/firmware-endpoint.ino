@@ -49,13 +49,13 @@ void setup(){
 }
 
 void loop(){
-  if(checkConnection()){
-
-  }else{
+  if(Config.previousConfig != 1){
+    //Configuration mode handlers
+  }else if(!checkConnection()){
     sendDebug('e', "Lost connection after started! Retry connection to WiFi network...");
     connectWiFi();
   }
-
+  
   //Loop handlers
   handleSerial();
 }
