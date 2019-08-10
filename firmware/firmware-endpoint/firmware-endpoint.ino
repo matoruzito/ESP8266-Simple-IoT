@@ -55,6 +55,9 @@ void loop(){
     sendDebug('e', "Lost connection after started! Retry connection to WiFi network...");
     connectWiFi();
   }
+
+  //Loop handlers
+  handleSerial();
 }
 
 
@@ -87,8 +90,9 @@ void sendDebug(char type, String message){
 void birthStart(){
   WiFi.mode(WIFI_AP_STA);
   sendDebug('i', "Waking up AP...");
-  while(!WiFi.softAP("SimpleIoT-ENDPOINT", "12345678")){}
-  sendDebug('i', "AP started! IP: "+WiFi.softAPIP());
+  while(!WiFi.softAP("Simple-IoT-ENDPOINT", "12345678")){}
+  String debugApIp = "AP Started! Gateway IP: " + WiFi.softAPIP().toString();
+  sendDebug('i', debugApIp);
   tcpserver.on("/configuration", handleConfigurationServer);
   sendDebug('i', "Server started. Waiting configuration...");
 }
@@ -185,4 +189,22 @@ boolean checkConnection(){
     return false;
   }
   return true;
+}
+
+void handleSerial() {
+ while(Serial.available() > 0){
+   char incomingChar = Serial.read();
+   switch(incomingChar){
+     case 'R':
+      sendDebug('i', "[FIRMWARE] Action 'Restart' handled! Restarting device in 5 seconds");
+      for(int i=4; i>0; i--){
+        delay(1000);
+        String tmpRestartTime = (String) i;
+        String tmpRestartDebug = "Restarting device in " + tmpRestartTime + " seconds.";
+        sendDebug('i', tmpRestartDebug);
+      }
+      ESP.restart();
+     break;
+    }
+ }
 }
