@@ -2,19 +2,25 @@
 #include <ESP8266WiFi.h>
 #include <ESP8266WebServer.h>
 #include <EEPROM.h>
+#include <WiFiUdp.h>
+#include <ArduinoJson.h>
 
 //Variables & Objetos
 const boolean debug = true;
 const int serialSpeed = 9600;
 const String ProgramVersion = "0.0.1 - c178958";
 uint addrEEPROM = 0;
+WiFiUDP udpBroadcast;
+StaticJsonDocument<200> doc;
+char packetBuffer[UDP_TX_PACKET_MAX_SIZE];
+IPAddress broadcastAddress;
 
 struct {
-  int previousConfig = 0;
+  int previousConfig = 1;
   int modeGPIO0 = -1;
   int modeGPIO1 = -1;
-  char* ssid = "default";
-  char* passwd = "none";
+  char* ssid = "TestNetwork";
+  char* passwd = "12345678";
   int listenerPort = 19950;
 } Config;
 
@@ -27,16 +33,18 @@ void setup(){
 
   //Load config
   EEPROM.begin(512);
-  EEPROM.get(addrEEPROM,Config);
-
+  //EEPROM.get(addrEEPROM,Config);
+  
   //¿First start?
-  if(Config.previousConfig != 1){
+  if(Config.previousConfig < 1){
     sendDebug('i', "No config detected... ¡Starting in configuration mode!");
     birthStart();
   }else{
     //Wake up methods
-    connectWiFi();
     sendDebug('i', "[FIRMWARE] Data loaded successful.");
+    connectWiFi();
+    startUDP();
+    
     tcpserver.on("/exec", handleExecServer);
   }
 
@@ -58,6 +66,7 @@ void loop(){
   
   //Loop handlers
   handleSerial();
+  handleUDPBroadcast();
 }
 
 
@@ -111,6 +120,8 @@ void connectWiFi(){
     if(WiFi.status() == WL_CONNECTED){
       sendDebug('i', "Connected correctly.");
       sendDebug('i', "IP: "+WiFi.localIP().toString());
+      broadcastAddress = (uint32_t)WiFi.localIP() | ~((uint32_t)WiFi.subnetMask());
+      sendDebug('i', "Broadcast Address: "+broadcastAddress.toString());
     }else if(WiFi.status() == WL_CONNECT_FAILED){
       sendDebug('e', "Error connecting to the network. (¿SSID out of range?)");
     }else{
@@ -207,4 +218,43 @@ void handleSerial() {
      break;
     }
  }
+}
+
+void handleUDPBroadcast(){
+  int packetSize = udpBroadcast.parsePacket();
+  if (packetSize) receivePacket(packetSize);
+}
+
+void startUDP(){
+  if(udpBroadcast.begin(Config.listenerPort)){
+    sendDebug('i', "UDP packet module started!");  
+  }
+}
+
+bool sendDiscoverPacket(const IPAddress& address, const uint8_t* buf, uint8_t bufSize) {
+  startUDP();
+  udpBroadcast.beginPacket(address, Config.listenerPort);
+  udpBroadcast.write(buf, bufSize);
+  return (udpBroadcast.endPacket() == 1);
+}
+
+void receivePacket(int packetSize) {
+  int randomIDPacket = random(30000);
+  
+  String prefix = "[BROADCAST " + (String) randomIDPacket;
+  sendDebug('i', prefix+"] Recived packet of size "+(String) packetSize);
+  sendDebug('i', prefix+"] From: "+udpBroadcast.remoteIP().toString());
+
+  udpBroadcast.read(packetBuffer, UDP_TX_PACKET_MAX_SIZE);
+  sendDebug('i', prefix + "] Info: " + packetBuffer);
+  
+  deserializeJson(doc, packetBuffer);
+  sendDebug('e', doc["device"]); //Modo debug, recibir "gateway" en conjunto con un tipo "beacon" sería una baliza para busqueda automática.
+  sendDebug('e', doc["type"]); 
+  /*
+   * Buscamos paquetes de estructura simil
+   * {"device":"gateway", "type": "beacon"}
+   */
+  udpBroadcast.flush();
+
 }
